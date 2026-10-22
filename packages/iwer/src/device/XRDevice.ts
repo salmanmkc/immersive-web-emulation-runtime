@@ -85,6 +85,7 @@ import { NativePlane } from '../planes/XRPlane.js';
 import { NativeMesh } from '../meshes/XRMesh.js';
 import type { DepthSensingData } from '../depth/XRDepthInformation.js';
 import { XRWebGLBinding } from '../depth/XRWebGLBinding.js';
+import { installLayerStatePreservation } from '../layers/GLState.js';
 import type { XRRuntimeAdapter } from '../types/runtime-session.js';
 import {
   calculateVisibilityMaskBounds,
@@ -896,10 +897,33 @@ export class XRDevice {
     setGlobal('XRReferenceSpaceEvent', XRReferenceSpaceEvent);
 
     if (polyfillLayers) {
-      new WebXRLayerPolyfill();
+      const layersPolyfill = new WebXRLayerPolyfill();
+      if (layersPolyfill.injected) {
+        installLayerStatePreservation();
+      }
       bypassLayersPolyfillForWebGPU(this[P_DEVICE].xrSystem!);
+      const LayersBinding = globalObject.XRWebGLBinding as new (
+        session: XRSession,
+        context: WebGL2RenderingContext,
+      ) => object;
+      setGlobal(
+        'XRWebGLBinding',
+        class extends LayersBinding {
+          private depthBinding: XRWebGLBinding;
+
+          constructor(session: XRSession, context: WebGL2RenderingContext) {
+            super(session, context);
+            this.depthBinding = new XRWebGLBinding(session, context);
+          }
+
+          getDepthInformation(view: XRView) {
+            return this.depthBinding.getDepthInformation(view);
+          }
+        },
+      );
     } else {
       setGlobal('XRMediaBinding', undefined);
+      setGlobal('XRWebGLBinding', XRWebGLBinding);
     }
     setGlobal('XRSubImage', XRSubImage);
     setGlobal('XRCompositionLayer', XRCompositionLayer);
@@ -911,7 +935,6 @@ export class XRDevice {
     setGlobal('XREquirectLayer', XREquirectLayer);
     setGlobal('XRCubeLayer', XRCubeLayer);
     setGlobal('XRLayerEvent', XRLayerEvent);
-    setGlobal('XRWebGLBinding', XRWebGLBinding);
   }
 
   /**

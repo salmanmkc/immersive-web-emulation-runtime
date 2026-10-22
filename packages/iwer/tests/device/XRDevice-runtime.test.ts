@@ -12,6 +12,7 @@ import {
 } from '../../src/session/XRSession.js';
 import { GamepadMappingType } from '../../src/gamepad/Gamepad.js';
 import { XRSystem } from '../../src/initialization/XRSystem.js';
+import { XRWebGLBinding } from '../../src/depth/XRWebGLBinding.js';
 import {
   XRGPUBinding,
   XRGPUSubImage,
@@ -221,6 +222,21 @@ describe('XRDevice runtime install/uninstall', () => {
       'XRCompositionLayer',
       'XRProjectionLayer',
     ].forEach((name) => expect(name in g).toBe(false));
+  });
+
+  test('without layers, installRuntime keeps the depth-only WebGL binding', () => {
+    const device = new XRDevice(makeDeviceConfig());
+
+    device.installRuntime({ polyfillLayers: false });
+
+    expect(g.XRWebGLBinding).toBe(XRWebGLBinding);
+    expect(XRWebGLBinding.prototype.getDepthInformation).toBeInstanceOf(
+      Function,
+    );
+    expect(XRWebGLBinding.prototype).not.toHaveProperty(
+      'createProjectionLayer',
+    );
+    expect(g.XRMediaBinding).toBeUndefined();
   });
 
   test('uninstallRuntime removes navigator.xr when there was no prior runtime', () => {
